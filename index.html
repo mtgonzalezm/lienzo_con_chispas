@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lienzo con Chispas</title>
+    <!-- 1. Carga Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. Carga las librerías de React -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 3. Carga Babel para que el navegador entienda JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 4. Carga las librerías externas que usamos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-player/2.16.0/react-player.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Inyectamos React y las librerías en el scope global para que funcionen
+        const { useState, useRef, useEffect } = React;
+        const { saveAs } = window;
+        const ReactPlayer = window.ReactPlayer;
+
+        // --- Paleta de Colores ---
+        const COLOR_PALETTE = ['#2798F5', '#EB27F5', '#F58427', '#31F527'];
+
+        // --- Imagen Inicial para el lienzo ---
+        const DEFAULT_IMAGE = 'https://placehold.co/1920x1080/e2e8f0/4a5568?text=Carga+tu+imagen+aquí';
+
+        // --- URL del Banner ---
+        const BANNER_IMAGE_URL = 'https://i.imgur.com/SHDSdhH.gif';
+
+        // --- Iconos SVG para una UI más limpia ---
+        const PointIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>;
+        const AreaIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>;
+        const UploadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>;
+        const DownloadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
+        const SaveIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>;
+        const MaximizeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>;
+        const MinimizeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>;
+        const CloseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+        const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+        const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
+
+        // --- Componente de Notificación ---
+        const Notification = ({ message, type, onClose }) => {
+          if (!message) return null;
+          const baseStyle = "fixed top-5 right-5 p-4 rounded-lg shadow-lg text-white flex items-center z-[2000]";
+          const typeStyles = { success: "bg-green-500", error: "bg-red-500", info: "bg-blue-500" };
+          useEffect(() => {
+            const timer = setTimeout(onClose, 3000);
+            return () => clearTimeout(timer);
+          }, [onClose]);
+          return (
+            <div className={`${baseStyle} ${typeStyles[type] || typeStyles.info}`}>
+              <span>{message}</span>
+              <button onClick={onClose} className="ml-4 font-bold">X</button>
+            </div>
+          );
+        };
+
+        // --- Componente Principal de la App ---
+        function App() {
+          const [title, setTitle] = useState('');
+          const [image, setImage] = useState(null);
+          const [points, setPoints] = useState([]);
+          const [editMode, setEditMode] = useState('point');
+          const [notification, setNotification] = useState({ message: '', type: '' });
+          const [isDrawing, setIsDrawing] = useState(false);
+          const [startPoint, setStartPoint] = useState(null);
+          const [tempArea, setTempArea] = useState(null);
+          const [modal, setModal] = useState({ type: null, data: null });
+          const [isMaximized, setIsMaximized] = useState(false);
+          const canvasRef = useRef(null);
+          const imageInputRef = useRef(null);
+          const projectInputRef = useRef(null);
+
+          const showNotification = (message, type = 'info') => setNotification({ message, type });
+
+          const handleImageChange = (event) => {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                setImage(e.target.result);
+                setPoints([]);
+                setTitle('');
+              };
+              reader.readAsDataURL(file);
+            } else {
+              showNotification("Por favor, selecciona un archivo de imagen.", "error");
+            }
+          };
+          
+          const handleLoadProject = (event) => {
+            const file = event.target.files[0];
+            if (file && file.name.endsWith('.json')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const projectData = JSON.parse(e.target.result);
+                        if ('title' in projectData && 'image' in projectData && 'points' in projectData) {
+                            setTitle(projectData.title);
+                            setImage(projectData.image);
+                            setPoints(projectData.points);
+                            showNotification("Proyecto cargado con éxito.", "success");
+                        } else {
+                            showNotification("El archivo de proyecto no tiene la estructura correcta.", "error");
+                        }
+                    } catch (error) {
+                        showNotification("Error al leer el archivo. ¿Es un JSON válido?", "error");
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                showNotification("Por favor, selecciona un archivo .json válido.", "error");
+            }
+          };
+
+          const getCoords = (e) => {
+            if (!canvasRef.current) return { x: 0, y: 0 };
+            const rect = canvasRef.current.getBoundingClientRect();
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+          };
+
+          const handleCanvasMouseDown = (e) => {
+            if (editMode !== 'area' || !image || e.target.closest('.interactive-point')) return;
+            setIsDrawing(true);
+            const coords = getCoords(e);
+            setStartPoint(coords);
+            setTempArea({ x: coords.x, y: coords.y, width: 0, height: 0 });
+          };
+
+          const handleCanvasMouseMove = (e) => {
+            if (!isDrawing) return;
+            const currentCoords = getCoords(e);
+            setTempArea({
+              x: Math.min(startPoint.x, currentCoords.x),
+              y: Math.min(startPoint.y, currentCoords.y),
+              width: Math.abs(currentCoords.x - startPoint.x),
+              height: Math.abs(currentCoords.y - startPoint.y),
+            });
+          };
+
+          const handleCanvasMouseUp = () => {
+            if (!isDrawing) return;
+            setIsDrawing(false);
+            if (tempArea && tempArea.width > 10 && tempArea.height > 10) {
+              const rect = canvasRef.current.getBoundingClientRect();
+              const newPointData = {
+                shape: 'area',
+                x: (tempArea.x / rect.width) * 100,
+                y: (tempArea.y / rect.height) * 100,
+                width: (tempArea.width / rect.width) * 100,
+                height: (tempArea.height / rect.height) * 100,
+              };
+              setModal({ type: 'addPoint', data: newPointData });
+            }
+            setTempArea(null);
+          };
+
+          const handleCanvasClick = (e) => {
+            if (editMode !== 'point' || !image || e.target.closest('.interactive-point')) return;
+            const rect = canvasRef.current.getBoundingClientRect();
+            const coords = getCoords(e);
+            const newPointData = { shape: 'point', x: (coords.x / rect.width) * 100, y: (coords.y / rect.height) * 100 };
+            setModal({ type: 'addPoint', data: newPointData });
+          };
+
+          const handlePointClick = (e, point) => {
+            e.stopPropagation();
+            setModal({ type: 'viewPoint', data: point });
+          };
+
+          const handlePointDelete = (e, indexToDelete) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setPoints(points.filter((_, index) => index !== indexToDelete));
+            showNotification("Punto eliminado correctamente.", "success");
+          };
+
+          const handleAddPoint = (pointData) => {
+            const newPoint = {
+              ...pointData,
+              color: COLOR_PALETTE[points.length % COLOR_PALETTE.length]
+            };
+            setPoints([...points, newPoint]);
+            setModal({ type: null, data: null });
+            showNotification("Punto añadido con éxito.", "success");
+          };
+          
+          const handleSaveProject = () => {
+            if (!image) {
+                showNotification("No hay nada que guardar. Carga una imagen primero.", "error");
+                return;
+            }
+            const projectData = {
+                title,
+                image,
+                points
+            };
+            const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json;charset=utf-8' });
+            saveAs(blob, `${title.replace(/ /g, '_') || 'proyecto'}.json`);
+            showNotification("Proyecto guardado.", "success");
+          };
+
+          const handleExportHTML = () => {
+            if (!image) {
+              showNotification("Primero debes cargar una imagen.", "error");
+              return;
+            }
+            const escapeHTML = (str) => {
+                if (!str) return '';
+                const p = document.createElement('p');
+                p.appendChild(document.createTextNode(str));
+                return p.innerHTML;
+            };
+            const pointsHTML = points.map(p => {
+                const contentData = escapeHTML(JSON.stringify(p.content));
+                const baseStyle = `position: absolute; left: ${p.x}%; top: ${p.y}%;`;
+                if (p.shape === 'point') {
+                    return `<div class="point" style="${baseStyle}" data-type="${p.type}" data-content='${contentData}'><div class="point-dot" style="background-color: ${p.color};"></div></div>`;
+                } else {
+                    return `<div class="area" style="${baseStyle} width: ${p.width}%; height: ${p.height}%;" data-type="${p.type}" data-content='${contentData}'></div>`;
+                }
+            }).join('\n');
+            const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${escapeHTML(title) || 'Imagen Interactiva'}</title>
+            <style>
+                body { margin: 0; font-family: sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; min-height: 100vh; }
+                .container { position: relative; max-width: 1024px; width: 100%; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+                .container img { display: block; width: 100%; height: auto; }
+                .point { position: absolute; transform: translate(-50%, -50%); cursor: pointer; z-index: 10; }
+                .point-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); animation: pulse 1.5s infinite; }
+                .area { position: absolute; cursor: pointer; z-index: 9; }
+                @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+                .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+                .modal-content { background: white; border-radius: 8px; max-width: 90%; max-height: 90%; display: flex; flex-direction: column; box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
+                .modal-header { padding: 10px 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+                .modal-body { padding: 0; overflow: auto; flex-grow: 1; }
+                .modal-body iframe, .modal-body embed { width: 85vw; height: 85vh; border: 0; }
+                .modal-close { font-size: 24px; cursor: pointer; border: none; background: none; }
+                .question-option { display: block; width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; background-color: #f9f9f9; border-radius: 6px; text-align: left; cursor: pointer; }
+                .question-option:hover { background-color: #eee; }
+                .video-interactive-container { position: relative; width: 100%; padding-top: 56.25%; background: black; }
+                .video-interactive-container iframe, .video-question-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+                .video-question-overlay { background: rgba(0,0,0,0.85); color: white; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <img src="${image}" alt="Imagen interactiva">
+                ${pointsHTML}
+            </div>
+
+            <div class="modal-overlay" id="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modal-title"></h3>
+                        <button class="modal-close" id="modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body" id="modal-body"></div>
+                </div>
+            </div>
+            
+            <script src="https://www.youtube.com/iframe_api"><\/script>
+            <script>
+                const modal = document.getElementById('modal');
+                const modalTitle = document.getElementById('modal-title');
+                const modalBody = document.getElementById('modal-body');
+                const modalClose = document.getElementById('modal-close');
+                let ytPlayer;
+                let videoInterval;
+
+                const closeModal = () => {
+                    modal.style.display = 'none';
+                    modalBody.innerHTML = '';
+                    if (ytPlayer) {
+                        ytPlayer.destroy();
+                        ytPlayer = null;
+                    }
+                    clearInterval(videoInterval);
+                };
+
+                modalClose.addEventListener('click', closeModal);
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal();
+                });
+
+                document.querySelectorAll('.point, .area').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const type = el.dataset.type;
+                        const content = JSON.parse(el.dataset.content);
+                        modalTitle.innerText = type.charAt(0).toUpperCase() + type.slice(1);
+                        modalBody.style.padding = '20px';
+                        
+                        let html = '';
+                        switch(type) {
+                            case 'texto': html = \`<p style="white-space: pre-wrap;">\${content}</p>\`; break;
+                            case 'imagen': html = \`<img src="\${content}" style="max-width: 100%; max-height: 70vh;">\`; break;
+                            case 'video':
+                                const videoId = content.split('v=')[1] || content.split('/').pop();
+                                html = \`<iframe src="https://www.youtube.com/embed/\${videoId}" frameborder="0" allowfullscreen></iframe>\`;
+                                modalBody.style.padding = '0';
+                                break;
+                            case 'iframe': 
+                                html = \`<iframe src="\${content}" frameborder="0" allowfullscreen></iframe>\`; 
+                                modalBody.style.padding = '0';
+                                break;
+                            case 'enlace': window.open(content, '_blank'); return;
+                            case 'pregunta':
+                                html = \`<h3>\${content.question}</h3>\`;
+                                html += content.options.map((opt, i) => \`<button class="question-option" onclick="checkAnswer(\${i === content.correct})">\${opt}</button>\`).join('');
+                                break;
+                            case 'videoInteractivo':
+                                const interactiveVideoId = content.url.split('v=')[1] || content.url.split('/').pop();
+                                html = \`<div class="video-interactive-container"><div id="yt-player"></div><div class="video-question-overlay" id="video-question-overlay"></div></div>\`;
+                                modalBody.style.padding = '0';
+                                setTimeout(() => setupInteractiveVideo(interactiveVideoId, content.questions), 10);
+                                break;
+                        }
+                        modalBody.innerHTML = html;
+                        modal.style.display = 'flex';
+                    });
+                });
+
+                window.checkAnswer = (isCorrect) => {
+                    alert(isCorrect ? '¡Respuesta Correcta!' : 'Respuesta Incorrecta');
+                    closeModal();
+                };
+
+                function setupInteractiveVideo(videoId, questions) {
+                    const questionOverlay = document.getElementById('video-question-overlay');
+                    let answeredQuestions = [];
+
+                    ytPlayer = new YT.Player('yt-player', {
+                        height: '100%',
+                        width: '100%',
+                        videoId: videoId,
+                        events: {
+                            'onStateChange': (event) => {
+                                if (event.data === YT.PlayerState.PLAYING) {
+                                    videoInterval = setInterval(() => {
+                                        const currentTime = ytPlayer.getCurrentTime();
+                                        const question = questions.find(q => Math.abs(q.time - currentTime) < 1 && !answeredQuestions.includes(q.time));
+                                        if (question) {
+                                            ytPlayer.pauseVideo();
+                                            answeredQuestions.push(question.time);
+                                            let questionHtml = \`<h3>\${question.text}</h3>\`;
+                                            questionHtml += question.options.map((opt, i) => \`<button class="question-option" onclick="handleVideoAnswer(\${i === question.correct})">\${opt}</button>\`).join('');
+                                            questionOverlay.innerHTML = questionHtml;
+                                            questionOverlay.style.display = 'flex';
+                                        }
+                                    }, 500);
+                                } else {
+                                    clearInterval(videoInterval);
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                window.handleVideoAnswer = (isCorrect) => {
+                    alert(isCorrect ? '¡Correcto!' : 'Incorrecto.');
+                    document.getElementById('video-question-overlay').style.display = 'none';
+                    if (ytPlayer) ytPlayer.playVideo();
+                };
+
+            <\/script>
+        </body>
+        </html>`;
+
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            saveAs(blob, `${title.replace(/ /g, '_') || 'imagen_interactiva'}.html`);
+            showNotification("HTML exportado con éxito.", "success");
+            setModal({ type: 'exportSuccess' });
+          };
+
+          return (
+            <React.Fragment>
+              <Notification message={notification.message} type={notification.type} onClose={() => setNotification({ message: '', type: '' })} />
+              <main className="p-4 sm:p-8 max-w-7xl mx-auto">
+                <header className="text-center mb-4">
+                   <input 
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="text-4xl sm:text-5xl font-bold text-gray-700 bg-transparent text-center w-full focus:outline-none focus:ring-2 focus:ring-blue-300 rounded-lg p-2 placeholder-gray-400"
+                  />
+                </header>
+
+                <div className="mb-8">
+                    <img src={BANNER_IMAGE_URL} alt="Banner Lienzo con Chispas" className="rounded-xl shadow-lg w-full max-w-5xl mx-auto" />
+                </div>
+
+                <div className="bg-white p-4 rounded-xl shadow-md mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 border-r pr-4 mr-2">
+                    <button onClick={() => imageInputRef.current.click()} className="flex items-center gap-2 text-sm bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
+                      <UploadIcon /> Cargar Imagen
+                    </button>
+                    <input type="file" ref={imageInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+                    <button onClick={() => projectInputRef.current.click()} className="flex items-center gap-2 text-sm bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
+                      <UploadIcon /> Cargar Proyecto
+                    </button>
+                    <input type="file" ref={projectInputRef} onChange={handleLoadProject} accept=".json" className="hidden" />
+                  </div>
+                   <div className="flex items-center gap-2">
+                     <button onClick={handleSaveProject} className="flex items-center gap-2 text-sm bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                      <SaveIcon /> Guardar Proyecto
+                    </button>
+                    <button onClick={handleExportHTML} className="flex items-center gap-2 text-sm bg-green-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                      <DownloadIcon /> Exportar HTML
+                    </button>
+                  </div>
+                  <div className="flex bg-gray-200 p-1 rounded-lg">
+                    <button onClick={() => setEditMode('point')} className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors text-sm font-medium ${editMode === 'point' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
+                      <PointIcon /> Añadir Punto
+                    </button>
+                    <button onClick={() => setEditMode('area')} className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors text-sm font-medium ${editMode === 'area' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
+                      <AreaIcon /> Dibujar Área
+                    </button>
+                  </div>
+                </div>
+
+                <div ref={canvasRef} className="relative w-full max-w-5xl mx-auto shadow-2xl rounded-lg overflow-hidden cursor-crosshair" onClick={handleCanvasClick} onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp}>
+                  <img src={image || DEFAULT_IMAGE} alt="Lienzo interactivo" className="block w-full h-auto select-none pointer-events-none" />
+                  {points.map((p, index) => (
+                    <div key={index} className="interactive-point group" style={{ position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, width: p.shape === 'area' ? `${p.width}%` : 'auto', height: p.shape === 'area' ? `${p.height}%` : 'auto' }} onClick={(e) => handlePointClick(e, p)} onContextMenu={(e) => handlePointDelete(e, index)}>
+                      {p.shape === 'point' ? 
+                        <div className="w-5 h-5 border-2 border-white rounded-full transform -translate-x-1/2 -translate-y-1/2 shadow-lg animate-pulse cursor-pointer" style={{ backgroundColor: p.color }}></div> 
+                        : 
+                        <div className="w-full h-full cursor-pointer"></div>
+                      }
+                      <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                        {p.type.charAt(0).toUpperCase() + p.type.slice(1)}
+                        <div className="w-2 h-2 bg-gray-800 absolute left-1/2 -translate-x-1/2 bottom-[-4px] transform rotate-45"></div>
+                      </div>
+                    </div>
+                  ))}
+                  {isDrawing && tempArea && <div className="absolute border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-25 pointer-events-none" style={{ left: tempArea.x, top: tempArea.y, width: tempArea.width, height: tempArea.height }} />}
+                </div>
+              </main>
+
+              {modal.type === 'addPoint' && <AddPointModal pointData={modal.data} onClose={() => setModal({ type: null, data: null })} onSave={handleAddPoint} showNotification={showNotification} />}
+              {modal.type === 'viewPoint' && <ViewPointModal pointData={modal.data} onClose={() => setModal({ type: null, data: null })} isMaximized={isMaximized} setIsMaximized={setIsMaximized} showNotification={showNotification} />}
+              {modal.type === 'exportSuccess' && <ExportSuccessModal onClose={() => setModal({ type: null, data: null})} showNotification={showNotification} />}
+            </React.Fragment>
+          );
+        }
+
+        // --- Componente Modal para Añadir Puntos ---
+        const AddPointModal = ({ pointData, onClose, onSave, showNotification }) => {
+          const [type, setType] = useState('texto');
+          const [content, setContent] = useState('');
+
+          const handleTypeChange = (newType) => {
+            setType(newType);
+            if (newType === 'pregunta') {
+              setContent({ question: '', options: ['', ''], correct: 0 });
+            } else if (newType === 'videoInteractivo') {
+              setContent({ url: '', questions: [{ time: '', text: '', options: ['', ''], correct: 0 }] });
+            } else {
+              setContent('');
+            }
+          };
+
+          const handleSave = (e) => {
+            e.preventDefault();
+            let finalContent = content;
+
+            if (type === 'iframe' && content.trim().startsWith('<iframe')) {
+                const match = content.match(/src="([^"]+)"/);
+                if (match && match[1]) {
+                    finalContent = match[1];
+                } else {
+                    showNotification("El código para embeber no parece válido.", "error");
+                    return;
+                }
+            }
+
+            if (type === 'pregunta' && (!finalContent.question || !finalContent.question.trim() || finalContent.options.some(o => !o.trim()))) {
+                showNotification("La pregunta y todas las opciones deben rellenarse.", "error");
+                return;
+            }
+            if (type === 'videoInteractivo' && (!finalContent.url || !finalContent.url.trim())) {
+                showNotification("La URL del video no puede estar vacía.", "error");
+                return;
+            }
+            if (typeof finalContent === 'string' && !finalContent.trim()) {
+                showNotification("El contenido no puede estar vacío.", "error");
+                return;
+            }
+            onSave({ ...pointData, type, content: finalContent });
+          };
+          
+          const handleFileContent = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (e) => setContent(e.target.result);
+              reader.readAsDataURL(file);
+            }
+          };
+
+          const pointTypes = [
+            { id: 'texto', label: 'Texto' }, { id: 'imagen', label: 'Imagen' }, { id: 'video', label: 'Video (URL)' }, { id: 'enlace', label: 'Enlace' },
+            { id: 'pregunta', label: 'Pregunta' }, { id: 'iframe', label: 'Embebido' }, { id: 'videoInteractivo', label: 'Video Interactivo' }
+          ];
+          
+          const urlPlaceholders = {
+            video: "Pega la URL del vídeo de YouTube...",
+            enlace: "Pega el enlace a la página web...",
+            iframe: "Pega el código <iframe> completo de Canva, Genially, etc."
+          };
+
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl transform transition-all max-h-[90vh] flex flex-col">
+                <form onSubmit={handleSave} className="flex flex-col h-full">
+                  <div className="p-6 flex-shrink-0">
+                    <h3 className="text-2xl font-bold text-gray-800 mb-4">Añadir Contenido Interactivo</h3>
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">Tipo de Contenido</label>
+                      <div className="flex flex-wrap gap-2">
+                        {pointTypes.map(pt => <button key={pt.id} type="button" onClick={() => handleTypeChange(pt.id)} className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${type === pt.id ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>{pt.label}</button>)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="px-6 pb-6 overflow-y-auto flex-grow">
+                    {type === 'texto' && <textarea value={content} onChange={e => setContent(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg h-32 focus:ring-2 focus:ring-blue-500" placeholder="Escribe tu contenido..."/>}
+                    {type === 'imagen' && <input type="file" accept="image/*" onChange={handleFileContent} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>}
+                    {(type === 'video' || type === 'enlace') && <input type="url" value={content} onChange={e => setContent(e.target.value)} placeholder={urlPlaceholders[type]} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" autoFocus />}
+                    {type === 'iframe' && <textarea value={content} onChange={e => setContent(e.target.value)} placeholder={urlPlaceholders[type]} className="w-full p-2 border border-gray-300 rounded-lg h-32 focus:ring-2 focus:ring-blue-500 font-mono text-sm" autoFocus />}
+                    {type === 'pregunta' && <QuestionForm content={content} setContent={setContent} />}
+                    {type === 'videoInteractivo' && <InteractiveVideoForm content={content} setContent={setContent} />}
+                  </div>
+
+                  <div className="bg-gray-50 p-4 flex justify-end gap-3 rounded-b-xl flex-shrink-0">
+                    <button type="button" onClick={onClose} className="px-5 py-2 text-sm font-semibold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" className="px-5 py-2 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600">Guardar</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        };
+
+        // --- Formularios para Tipos de Contenido Específicos ---
+        const QuestionForm = ({ content, setContent }) => {
+            const handleOptionChange = (index, value) => {
+                const newOptions = [...content.options];
+                newOptions[index] = value;
+                setContent({ ...content, options: newOptions });
+            };
+            const addOption = () => setContent({...content, options: [...content.options, '']});
+
+            return (
+                <div className="space-y-4">
+                    <input type="text" value={content.question || ''} onChange={e => setContent({...content, question: e.target.value})} placeholder="Escribe la pregunta" className="w-full p-2 border border-gray-300 rounded-lg"/>
+                    <p className="text-sm text-gray-500">Opciones (marca la correcta):</p>
+                    {(content.options || []).map((opt, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                            <input type="radio" name="correctAnswer" checked={content.correct === index} onChange={() => setContent({...content, correct: index})} />
+                            <input type="text" value={opt} onChange={e => handleOptionChange(index, e.target.value)} placeholder={`Opción ${index + 1}`} className="w-full p-2 border border-gray-300 rounded-lg"/>
+                        </div>
+                    ))}
+                    <button type="button" onClick={addOption} className="text-sm text-blue-600 hover:underline">Añadir opción</button>
+                </div>
+            );
+        };
+
+        const InteractiveVideoForm = ({ content, setContent }) => {
+            const handleQuestionChange = (qIndex, field, value) => {
+                const newQuestions = [...(content.questions || [])];
+                newQuestions[qIndex][field] = value;
+                setContent({...content, questions: newQuestions});
+            };
+            const handleOptionChange = (qIndex, oIndex, value) => {
+                const newQuestions = [...(content.questions || [])];
+                newQuestions[qIndex].options[oIndex] = value;
+                setContent({...content, questions: newQuestions});
+            };
+            const addQuestion = () => {
+                const currentQuestions = content.questions || [];
+                setContent({...content, questions: [...currentQuestions, { time: '', text: '', options: ['', ''], correct: 0 }]});
+            };
+            const removeQuestion = (qIndex) => {
+                setContent({...content, questions: (content.questions || []).filter((_, i) => i !== qIndex) });
+            };
+
+            return (
+                <div className="space-y-4">
+                    <input type="url" value={content.url || ''} onChange={e => setContent({...content, url: e.target.value})} placeholder="URL del video de YouTube" className="w-full p-2 border border-gray-300 rounded-lg"/>
+                    {(content.questions || []).map((q, qIndex) => (
+                        <div key={qIndex} className="p-3 border border-gray-200 rounded-lg space-y-2 bg-gray-50">
+                            <div className="flex justify-between items-center">
+                                <h4 className="font-semibold text-sm">Pregunta {qIndex + 1}</h4>
+                                <button type="button" onClick={() => removeQuestion(qIndex)} className="text-red-500 hover:text-red-700"><TrashIcon /></button>
+                            </div>
+                            <input type="number" value={q.time} onChange={e => handleQuestionChange(qIndex, 'time', e.target.value)} placeholder="Segundo (ej: 65)" className="w-full p-2 border border-gray-300 rounded-lg"/>
+                            <input type="text" value={q.text} onChange={e => handleQuestionChange(qIndex, 'text', e.target.value)} placeholder="Texto de la pregunta" className="w-full p-2 border border-gray-300 rounded-lg"/>
+                            <p className="text-xs text-gray-500">Opciones:</p>
+                            {q.options.map((opt, oIndex) => (
+                                <div key={oIndex} className="flex items-center gap-2">
+                                    <input type="radio" name={`q-correct-${qIndex}`} checked={q.correct === oIndex} onChange={() => handleQuestionChange(qIndex, 'correct', oIndex)} />
+                                    <input type="text" value={opt} onChange={e => handleOptionChange(qIndex, oIndex, e.target.value)} placeholder={`Opción ${oIndex + 1}`} className="w-full p-2 border border-gray-300 rounded-lg"/>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                    <button type="button" onClick={addQuestion} className="flex items-center gap-2 text-sm text-blue-600 hover:underline"><PlusIcon /> Añadir pregunta</button>
+                </div>
+            );
+        };
+
+
+        // --- Componente Modal para Visualizar Puntos ---
+        const ViewPointModal = ({ pointData, onClose, isMaximized, setIsMaximized, showNotification }) => {
+          const { type, content } = pointData;
+
+          const renderContent = () => {
+            switch (type) {
+              case 'texto': return <div className="p-4 whitespace-pre-wrap">{content}</div>;
+              case 'imagen': return <img src={content} alt="Contenido" className="max-w-full max-h-[80vh] object-contain mx-auto" />;
+              case 'video':
+                return (
+                  <div className="relative w-full h-0" style={{ paddingTop: '56.25%' }}>
+                    <ReactPlayer url={content} className="absolute top-0 left-0" playing controls width="100%" height="100%" />
+                  </div>
+                );
+              case 'iframe':
+                return (
+                  <div className="relative w-full h-0" style={{ paddingTop: '56.25%' }}>
+                     <iframe src={content} title="Contenido embebido" className="absolute top-0 left-0 w-full h-full border-0" allowFullScreen></iframe>
+                  </div>
+                );
+              case 'pregunta': return <QuestionView content={content} showNotification={showNotification} onClose={onClose} />;
+              case 'videoInteractivo': return <InteractiveVideoView content={content} showNotification={showNotification} />;
+              case 'enlace':
+                useEffect(() => {
+                  window.open(content, '_blank', 'noopener,noreferrer');
+                  onClose();
+                }, [content, onClose]);
+                return <p className="p-4">Redirigiendo al enlace...</p>;
+              default: return <p className="p-4">Tipo de contenido no reconocido.</p>;
+            }
+          };
+
+          const modalSizeClass = isMaximized ? "w-full h-full rounded-none" : "w-11/12 max-w-4xl max-h-[90vh]";
+          const isMedia = ['video', 'iframe', 'videoInteractivo'].includes(type);
+
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-[1000] p-4" onClick={onClose}>
+              <div className={`bg-white shadow-2xl flex flex-col transform transition-all duration-300 ${modalSizeClass}`} onClick={(e) => e.stopPropagation()}>
+                <header className="flex items-center justify-between p-3 bg-gray-100 border-b border-gray-200 flex-shrink-0">
+                  <h4 className="font-bold text-gray-700">{type.charAt(0).toUpperCase() + type.slice(1)}</h4>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setIsMaximized(!isMaximized)} className="text-gray-500 hover:text-gray-800">{isMaximized ? <MinimizeIcon /> : <MaximizeIcon />}</button>
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800"><CloseIcon /></button>
+                  </div>
+                </header>
+                <main className={`overflow-auto flex-grow flex items-center justify-center ${isMedia ? 'p-0 bg-black' : 'p-2'}`}>
+                  <div className="w-full h-full">
+                    {renderContent()}
+                  </div>
+                </main>
+              </div>
+            </div>
+          );
+        };
+        
+        // --- Componente Modal para el Éxito de la Exportación y Obtener Iframe ---
+        const ExportSuccessModal = ({onClose, showNotification}) => {
+            const [url, setUrl] = useState('');
+            const iframeCode = `<iframe src="${url}" width="100%" height="600" style="border:0;" allowfullscreen=""></iframe>`;
+            
+            const handleCopy = () => {
+                navigator.clipboard.writeText(iframeCode).then(() => {
+                    showNotification("Código copiado al portapapeles", "success");
+                }, () => {
+                    showNotification("No se pudo copiar el código", "error");
+                });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
+                  <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl transform transition-all">
+                      <div className="p-6">
+                        <h3 className="text-2xl font-bold text-gray-800 mb-2">¡Exportación Exitosa!</h3>
+                        <p className="text-green-600 mb-4">Tu archivo HTML se ha descargado.</p>
+                        <p className="text-gray-600 mb-4 text-sm">Ahora puedes subir ese archivo a un servicio de hosting (como <a href="https://www.netlify.com/" target="_blank" className="text-blue-500 hover:underline">Netlify</a>, <a href="https://pages.github.com/" target="_blank" className="text-blue-500 hover:underline">GitHub Pages</a> o incluso Google Drive) para obtener un enlace público y poder embeber tu creación.</p>
+                        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Pega aquí la URL pública de tu HTML" className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4" />
+                        {url && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-2">Código para embeber (copiar y pegar):</label>
+                                <textarea readOnly value={iframeCode} className="w-full p-2 border bg-gray-100 border-gray-300 rounded-lg h-24 font-mono text-sm"></textarea>
+                                <button onClick={handleCopy} className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">Copiar Código</button>
+                            </div>
+                        )}
+                      </div>
+                       <div className="bg-gray-50 p-4 flex justify-end gap-3 rounded-b-xl">
+                        <button type="button" onClick={onClose} className="px-5 py-2 text-sm font-semibold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300">Cerrar</button>
+                      </div>
+                  </div>
+                </div>
+            );
+        };
+
+        // --- Vistas para Tipos de Contenido Específicos ---
+        const QuestionView = ({ content, showNotification, onClose }) => {
+            const handleAnswer = (index) => {
+                if (index === content.correct) {
+                    showNotification("¡Respuesta Correcta!", "success");
+                } else {
+                    showNotification("Respuesta Incorrecta. Inténtalo de nuevo.", "error");
+                }
+                onClose();
+            };
+            return (
+                <div className="p-6">
+                    <h3 className="text-xl font-semibold mb-4">{content.question}</h3>
+                    <div className="flex flex-col gap-3">
+                        {content.options.map((opt, index) => (
+                            <button key={index} onClick={() => handleAnswer(index)} className="w-full text-left p-3 bg-gray-100 rounded-lg hover:bg-blue-100 border border-gray-200 transition-colors">
+                                {opt}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const InteractiveVideoView = ({ content, showNotification }) => {
+            const [playing, setPlaying] = useState(true);
+            const [activeQuestion, setActiveQuestion] = useState(null);
+            const playerRef = useRef(null);
+
+            const handleProgress = (progress) => {
+                if (!activeQuestion) {
+                    const questionToShow = (content.questions || []).find(
+                        q => !q.answered && Math.abs(q.time - progress.playedSeconds) < 1
+                    );
+                    if (questionToShow) {
+                        setPlaying(false);
+                        setActiveQuestion(questionToShow);
+                    }
+                }
+            };
+            
+            const handleAnswer = (index) => {
+                if (index === activeQuestion.correct) {
+                    showNotification("¡Correcto!", "success");
+                } else {
+                    showNotification("Incorrecto.", "error");
+                }
+                activeQuestion.answered = true; // Marcar como respondida
+                setActiveQuestion(null);
+                setPlaying(true);
+            };
+
+            return (
+                <div className="w-full relative" style={{ paddingTop: '56.25%' }}>
+                    <ReactPlayer ref={playerRef} url={content.url} className="absolute top-0 left-0" playing={playing} controls onProgress={handleProgress} width="100%" height="100%" />
+                    {activeQuestion && (
+                        <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-center items-center p-8 text-white text-center">
+                            <h3 className="text-2xl font-bold mb-6">{activeQuestion.text}</h3>
+                            <div className="flex flex-col gap-4 w-full max-w-md">
+                                {activeQuestion.options.map((opt, index) => (
+                                    <button key={index} onClick={() => handleAnswer(index)} className="p-4 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-40 border-2 border-white transition-all">
+                                        {opt}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- Montaje de la App en el DOM ---
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
