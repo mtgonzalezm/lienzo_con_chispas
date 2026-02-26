@@ -33,6 +33,13 @@ export const MESSAGES = {
   },
 };
 
+export const HOTSPOT_CONFIG = {
+  minSize: 20,
+  borderColor: '#3b82f6',
+  borderWidth: 2,
+  fillColor: 'rgba(59, 130, 246, 0.1)',
+};
+
 export const STORAGE_KEYS = {
   PROJECT: 'imagen-explora-project',
   HOTSPOTS: 'imagen-explora-hotspots',
@@ -44,5 +51,6 @@ export default {
   CONTENT_TYPES,
   CONTENT_TYPES_CONFIG,
   MESSAGES,
+  HOTSPOT_CONFIG,
   STORAGE_KEYS,
 };
