@@ -1,7 +1,3 @@
-/**
- * ✅ VALIDATORS.JS - Validación Centralizada
- */
-
 import { MESSAGES } from './constants.js';
 
 export function isValidUrl(string) {
@@ -40,6 +36,10 @@ export function validateImageFile(file) {
   return { valid: true };
 }
 
+export function validateHotspotSize(width, height, minSize = 20) {
+  return width >= minSize && height >= minSize;
+}
+
 export function validateContent(type, content) {
   switch (type) {
     case 'text':
@@ -56,5 +56,6 @@ export default {
   validateTextContent,
   validateLinkContent,
   validateImageFile,
+  validateHotspotSize,
   validateContent,
 };
