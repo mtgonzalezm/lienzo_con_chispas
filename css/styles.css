@@ -1,0 +1,31 @@
+/* Usamos la fuente Inter importada en el HTML */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Estilo para el canvas cuando hay una imagen cargada */
+#editor-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    cursor: crosshair; /* Cursor por defecto para dibujar */
+}
+
+/* Estilos para los botones de herramientas */
+.tool-btn {
+    @apply w-12 h-12 flex items-center justify-center bg-gray-200 rounded-lg text-gray-600 hover:bg-blue-500 hover:text-white transition-all;
+}
+
+.tool-btn.active-tool {
+    @apply bg-blue-500 text-white ring-2 ring-blue-300;
+}
+
+/* Animación para la aparición del modal */
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
+}
